@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
-import { genUnitTests, genUnitTestsFileName } from './geminigen';
+import { genUnitTests, genUnitTestsFileName, validateTestCodeAgainstAcceptCrit } from './geminigen';
 import * as fs from 'fs';
+// import cp from 'child_process';
 
 
 export function activate(context: vscode.ExtensionContext) {
@@ -64,11 +65,73 @@ class ColorsViewProvider implements vscode.WebviewViewProvider {
 						const code = await genUnitTests(acceptanceCriteria, projTestingFramework, apiToken);
 						vscode.window.showInformationMessage(code);
 						let fileName = await genUnitTestsFileName(acceptanceCriteria, projTestingFramework, apiToken);
-						fileName = fileName || "test" + Math.floor(Math.random() * 1000) 
-						fileName = fileName+this.getFileExtension(projTestingFramework);
+						fileName = fileName || "test" + Math.floor(Math.random() * 1000)
+						fileName = fileName + this.getFileExtension(projTestingFramework);
 						webviewView.webview.postMessage({ type: 'genTestsComplete', code });
 						this.createTestFile(fileName, code);
 						break;
+					}
+				case "validateUTestAgainstAcceptCrit":
+					{
+						const { apiToken, projTestingFramework, acceptanceCriteria } = data.value
+
+						const cp = require("child_process")
+						function execAsync(command: string) {
+							return new Promise((resolve: any, reject: any) => {
+								cp.exec(command, { cwd: vscode.workspace.rootPath }, (err: string, stdout: string, stderr: string) => {
+									if (err) {
+										reject(err)
+									} else {
+										resolve({ stdout, stderr })
+									}
+								})
+							})
+						}
+
+						let stagedCode = "";
+						const grepCmdForFiltExt = " | grep test | grep java"
+						const cmd = "git diff --cached --name-only  | grep test | grep java"
+						const result: any = await execAsync(cmd)
+						const files: string[] = result?.stdout?.split("\n")
+						console.log("files", files)
+						const promises = files.filter((f: string) => !!f)
+							.map(async (file: string) => {
+								let cmd = `git diff --cached ${file} | grep -e "^+ "`
+								const result: any = await execAsync(cmd)
+								return result.stdout.replace(/\+ /gi,"")
+							})
+						const results = await Promise.all(promises)
+
+						const code = results.reduce((a: string, c: string) => { return a + c + "\n\n" }, "");
+						const geminiOp = await validateTestCodeAgainstAcceptCrit(acceptanceCriteria, projTestingFramework, code, apiToken)
+						console.log("geminiOp", geminiOp)
+						vscode.workspace.openTextDocument({ content: geminiOp, language: "markdown" })
+							.then(document => {
+								vscode.window.showTextDocument(document)
+							})
+						// cp.exec(cmd, { cwd: vscode.workspace.rootPath }, async (err: string, stdout: string, stderr: string) => {
+						// 	if (err) {
+						// 		vscode.window.showErrorMessage(err?.message);
+						// 	}
+						// 	const files = stdout.split("\n")
+						// 	console.log("files", files)
+						// 	files.filter(f => !!f).map(file => {
+						// 		let cmd =`git diff --cached ${file} | grep -e "^+ "`
+						// 		cp.exec(cmd,
+						// 			{ cwd: vscode.workspace.rootPath },
+						// 			async (err: string, stdout: string, stderr: string) => {
+						// 				if (err) {
+						// 					vscode.window.showErrorMessage(err);
+						// 				}
+						// 				stagedCode += stdout + "\n\n"
+						// 				console.log("stagedCode",stagedCode)
+						// 			})
+						// 	})
+						// 	await validateTestCodeAgainstAcceptCrit()
+
+
+						// })
+						console.log("stagedCode", stagedCode)
 					}
 			}
 		});
@@ -183,7 +246,7 @@ class ColorsViewProvider implements vscode.WebviewViewProvider {
 				<title>тест Intern</title>
 			</head>
 			<body>
-			<form action="javascript:void()" id="genForm" >
+			<form id="form" action="javascript:void()" id="genForm" >
 				<fieldset>
 				<label>Gemini API token</label>
 				<input type="password" name="apiToken" />
@@ -200,7 +263,11 @@ class ColorsViewProvider implements vscode.WebviewViewProvider {
 				</fieldset>
 
 				<button type="submit" id="submitButton" >Generate Tests</button>
+
 			</form>
+				<button type="button" id="validate">Validate</button>
+
+				<div style="font-size:0.5em">Validate staged Unit test code against Accceptance criteria </div>
 				<div id="status"></div>
 
 				<pre id="code"></pre>

@@ -50,7 +50,6 @@
     });
 
     window.onload = function () {
-        debugger;
         document.getElementById("genForm")?.addEventListener("submit", function (e) {
             e.preventDefault();
             e.stopPropagation();
@@ -64,6 +63,17 @@
             console.log(apiToken, projTestingFramework, acceptanceCriteria)
             vscode.postMessage({ type: 'genTests', value: { apiToken, projTestingFramework, acceptanceCriteria } });
             return false;
+        })
+
+        document.getElementById("validate")?.addEventListener("click",function(e){
+            const form = document.getElementById("form")
+            const apiToken = form.elements["apiToken"].value
+
+            const projTestingFramework = form.elements["projTestingFramework"].value
+            const acceptanceCriteria = form.elements["acceptanceCriteria"].value
+            console.log( projTestingFramework, acceptanceCriteria)
+            vscode.postMessage({ type: 'validateUTestAgainstAcceptCrit', value: { apiToken, projTestingFramework, acceptanceCriteria } });
+ 
         })
     }
 
