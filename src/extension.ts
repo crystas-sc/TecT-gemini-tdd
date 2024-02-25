@@ -1,7 +1,11 @@
 import * as vscode from 'vscode';
-import { genUnitTests, genUnitTestsFileName, validateTestCodeAgainstAcceptCrit } from './geminigen';
+import {
+	genUnitTests, genUnitTestsFileName,
+	validateTestCodeAgainstAcceptCrit, genImplementationFromTestCode
+} from './geminigen';
 import * as fs from 'fs';
 // import cp from 'child_process';
+
 
 
 export function activate(context: vscode.ExtensionContext) {
@@ -24,7 +28,54 @@ export function activate(context: vscode.ExtensionContext) {
 	// 	}));
 
 
+	context.subscriptions.push(vscode.commands.registerCommand('tect.genImplementaion', async (uri) => {
+		let apiKey = context.workspaceState.get("geminiApiKey")
+		if (!apiKey)
+			apiKey = await vscode.window.showInputBox({
+				prompt: 'Enter your API key:',
+				placeHolder: 'API Key'
+			});
+		if (apiKey) {
+			context.workspaceState.update("geminiApiKey", apiKey);
+
+			vscode.window.showInformationMessage(`Generating code ....`);
+			const filePath = uri.fsPath;
+			fs.readFile(filePath, 'utf-8', async (err: any, content: string) => {
+				const output = await genImplementationFromTestCode(content, apiKey);
+				vscode.workspace.openTextDocument({ content: output, language: "markdown" })
+					.then(document => {
+						vscode.window.showTextDocument(document)
+					})
+			});
+
+		}
+		// Implement your logic here to run tests for the selected file
+	}));
+	// vscode.window.onDidChangeActiveTextEditor(() => {
+	//     console.log('Text editor changed');
+	//     updateContextMenus();
+	// });
+
+	// updateContextMenus();
+
+	// vscode.window.onDidChangeActiveTextEditor(() => {
+	//     updateContextMenus();
+	// });
+
+	// updateContextMenus();
+
+
 }
+
+// function updateContextMenus() {
+// 	const editor = vscode.window.activeTextEditor;
+// 	if (!editor) {
+// 		return;
+// 	}
+
+// 	const isTestFile = editor.document.fileName.toLowerCase().includes('test');
+// 	vscode.commands.executeCommand('setContext', 'isTestFile', isTestFile);
+// }
 
 class ColorsViewProvider implements vscode.WebviewViewProvider {
 
@@ -34,7 +85,7 @@ class ColorsViewProvider implements vscode.WebviewViewProvider {
 	public workspaceTestingFramework: string = "";
 
 	constructor(
-		private readonly _extensionUri: vscode.Uri,
+		private readonly _extensionUri: vscode.Uri
 	) { }
 
 	public resolveWebviewView(
@@ -98,7 +149,7 @@ class ColorsViewProvider implements vscode.WebviewViewProvider {
 							.map(async (file: string) => {
 								let cmd = `git diff --cached ${file} | grep -e "^+ "`
 								const result: any = await execAsync(cmd)
-								return result.stdout.replace(/\+ /gi,"")
+								return result.stdout.replace(/\+ /gi, "")
 							})
 						const results = await Promise.all(promises)
 
@@ -246,10 +297,10 @@ class ColorsViewProvider implements vscode.WebviewViewProvider {
 				<title>тест Intern</title>
 			</head>
 			<body>
-			<form id="form" action="javascript:void()" id="genForm" >
+			<form  action="javascript:void()" id="genForm" >
 				<fieldset>
 				<label>Gemini API token</label>
-				<input type="password" name="apiToken" />
+				<input id="apiToken" type="password" name="apiToken" />
 				</fieldset>
 
 				<fieldset>

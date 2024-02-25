@@ -65,8 +65,13 @@
             return false;
         })
 
+        
+        document.getElementById("apiToken")?.addEventListener("change",function(e){
+            vscode.setState({ apiKey: e.target.value })
+        })
+
         document.getElementById("validate")?.addEventListener("click",function(e){
-            const form = document.getElementById("form")
+            const form = document.getElementById("genForm")
             const apiToken = form.elements["apiToken"].value
 
             const projTestingFramework = form.elements["projTestingFramework"].value
